@@ -37,7 +37,7 @@ export function createSnowAccumUniforms(uTime: { value: number }): SnowAccumUnif
     uSnowScale: { value: 0.6 },        // coverage noise frequency (world units)
     uSnowCoverage: { value: 0.7 },     // 0 = bare, 1 = fully capped
     uSnowEdge: { value: 0.15 },        // coverage shoreline softness
-    uSnowThickness: { value: 0.06 },   // displaced layer depth (world units)
+    uSnowThickness: { value: 0.01 },   // displaced layer depth (world units)
     uSnowFlatThreshold: { value: 0.35 }, // how upward a face must be to collect
     uSnowColor: { value: new Color(0xeaf1ff) },
     uSnowRoughness: { value: 0.85 },

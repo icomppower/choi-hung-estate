@@ -16,7 +16,6 @@ export interface BuildingParams {
   storeSign: number;
   objectOnRoof: number;
   randomise: number;
-  lowPoly: boolean;
 }
 
 /** Values saved on the GeometryNodes modifier in the .blend file. */
@@ -38,6 +37,5 @@ export function defaultParams(): BuildingParams {
     storeSign: 0.748,
     objectOnRoof: 0.835,
     randomise: 0,
-    lowPoly: false,
   };
 }

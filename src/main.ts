@@ -1,5 +1,5 @@
 import {
-  ACESFilmicToneMapping, BoxGeometry, Clock, Color, DoubleSide, Group, MathUtils,
+  ACESFilmicToneMapping, Clock, Color, DoubleSide, Group, MathUtils,
   Material, Mesh, MeshBasicMaterial, MeshNormalMaterial, MeshStandardMaterial,
   PerspectiveCamera, PlaneGeometry, Scene, ShaderMaterial, SRGBColorSpace, Vector3,
   WebGLRenderer,
@@ -89,22 +89,6 @@ function applySnowEnabled(v: boolean): void {
   if (shell) shell.visible = v;
 }
 
-const shellMat = new MeshStandardMaterial({ color: 0x8d8577, roughness: 0.9 });
-
-function buildLowPolyShell(p: BuildingParams): Group {
-  const g = new Group();
-  const body = new Mesh(new BoxGeometry(p.length, p.width, p.floor), shellMat);
-  body.position.set(0, 0, p.floor / 2);
-  const roofSlab = new Mesh(new BoxGeometry(p.length + 0.4, p.width + 1.0, 0.4), shellMat);
-  roofSlab.position.set(0, 0, p.floor + 0.15);
-  for (const m of [body, roofSlab]) {
-    m.castShadow = true;
-    m.receiveShadow = true;
-    g.add(m);
-  }
-  return g;
-}
-
 /** world-space bounds of the current building, for camera framing + shadow fitting */
 function getBounds(): Bounds {
   const h = params.floor + 0.4;
@@ -178,9 +162,7 @@ function regenerate(): void {
       if (im.isInstancedMesh) im.dispose?.();
     });
   }
-  building = params.lowPoly
-    ? buildLowPolyShell(params)
-    : kit.buildGroup(generateBuilding(params, kit));
+  building = kit.buildGroup(generateBuilding(params, kit));
   applyDebugMaterials(building);
   root.add(building);
   applySnowEnabled(snowState.enabled); // new snowShell group starts hidden
@@ -262,6 +244,32 @@ function updateFocusPlane(dt: number): void {
 // ---- GUI ----
 const gui = new GUI({ title: "hong kong building" });
 
+// --- building settings (top of the list): dimensions / probabilities / misc ---
+const fBuild = gui.addFolder("building settings");
+const dims = fBuild.addFolder("dimensions");
+dims.add(params, "floor", 3, 14, 1);
+dims.add(params, "length", 2, 16, 1);
+dims.add(params, "width", 2, 10, 1);
+const probs = fBuild.addFolder("probabilities");
+probs.add(params, "acUnit", 0, 1, 0.01).name("AC unit");
+probs.add(params, "roofProbability", 0, 1, 0.01).name("window awning");
+probs.add(params, "clothlineProbability", 0, 1, 0.01).name("clothline");
+probs.add(params, "lights", 0, 1, 0.01);
+probs.add(params, "windowType", 0, 1, 0.01).name("window type");
+probs.add(params, "windowOpenAmount", 0, 1, 0.01).name("window open");
+probs.add(params, "curtainClose", 0, 1, 0.01).name("curtain close");
+probs.add(params, "closedOpenStore", 0, 1, 0.01).name("open store");
+probs.add(params, "roofOnStore", 0, 1, 0.01).name("roof on store");
+probs.add(params, "objectOnGround", 0, 1, 0.01).name("ground objects");
+probs.add(params, "storeSign", 0, 1, 0.01).name("store sign");
+probs.add(params, "objectOnRoof", 0, 1, 0.01).name("roof objects");
+probs.close();
+const misc = fBuild.addFolder("misc");
+misc.add(params, "randomise", 0, 1000, 1).name("seed");
+misc.close();
+// any building-settings change regenerates the mesh
+fBuild.onChange(() => regenerate());
+
 env.addGui(gui);
 
 // ---- snow GUI (one master toggle, ported params from SnowSystemThreeJS) ----
@@ -280,7 +288,6 @@ fFall.add(wind, "direction", 0, 360, 1).name("wind dir").onChange(applyWind);
 fFall.close();
 const fAccum = fSnow.addFolder("accumulation");
 fAccum.add(accumU.uSnowCoverage, "value", 0, 1, 0.01).name("coverage");
-fAccum.add(accumU.uSnowThickness, "value", 0, 0.3, 0.001).name("thickness");
 fAccum.add(accumU.uSnowScale, "value", 0.1, 4, 0.01).name("patch scale");
 fAccum.add(accumU.uSnowEdge, "value", 0.01, 0.4, 0.005).name("patch softness");
 fAccum.add(accumU.uSnowSeed.value, "x", -50, 50, 0.1).name("seed x");
@@ -294,32 +301,6 @@ fAccum.add(accumU.uSnowSparkle, "value", 0, 1, 0.01).name("sparkle");
 fAccum.add(accumU.uSnowSparkleScale, "value", 30, 300, 1).name("sparkle density");
 fAccum.close();
 fSnow.close();
-
-const dims = gui.addFolder("dimensions");
-dims.add(params, "floor", 3, 14, 1);
-dims.add(params, "length", 2, 16, 1);
-dims.add(params, "width", 2, 10, 1);
-const probs = gui.addFolder("probabilities");
-probs.add(params, "acUnit", 0, 1, 0.01).name("AC unit");
-probs.add(params, "roofProbability", 0, 1, 0.01).name("window awning");
-probs.add(params, "clothlineProbability", 0, 1, 0.01).name("clothline");
-probs.add(params, "lights", 0, 1, 0.01);
-probs.add(params, "windowType", 0, 1, 0.01).name("window type");
-probs.add(params, "windowOpenAmount", 0, 1, 0.01).name("window open");
-probs.add(params, "curtainClose", 0, 1, 0.01).name("curtain close");
-probs.add(params, "closedOpenStore", 0, 1, 0.01).name("open store");
-probs.add(params, "roofOnStore", 0, 1, 0.01).name("roof on store");
-probs.add(params, "objectOnGround", 0, 1, 0.01).name("ground objects");
-probs.add(params, "storeSign", 0, 1, 0.01).name("store sign");
-probs.add(params, "objectOnRoof", 0, 1, 0.01).name("roof objects");
-probs.close();
-const misc = gui.addFolder("misc");
-misc.add(params, "randomise", 0, 1000, 1).name("seed");
-misc.add(params, "lowPoly").name("low poly");
-misc.close();
-
-// regenerate only for build-parameter folders (camera/lighting/post have their own handlers)
-for (const folder of [dims, probs, misc]) folder.onChange(() => regenerate());
 
 // --- 🎬 Cinematic (last in the list): Camera / Depth of Field / Effects ---
 const fCine = gui.addFolder("🎬 cinematic");

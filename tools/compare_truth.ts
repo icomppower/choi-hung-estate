@@ -36,7 +36,6 @@ const p: BuildingParams = {
   storeSign: truth.params["store sign"],
   objectOnRoof: truth.params["object on roof"],
   randomise: truth.params["randomise"],
-  lowPoly: false,
 };
 
 const counts = { count: (c: string) => manifest.collections[c]?.children?.length || 1 };
