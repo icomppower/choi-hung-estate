@@ -135,6 +135,16 @@ export class Kit {
     return c?.children?.length || 1;
   }
 
+  /** Set the floor emissive intensity on BOTH the exterior floor material and its
+   *  dry interior clone, so glowing rooms/storeinside track the "emissive" slider
+   *  (they render with the dry clone to stay out of the rain wetness). */
+  setFloorEmissive(v: number): void {
+    const floor = this.materials?.floor as MeshStandardMaterial | undefined;
+    if (floor) floor.emissiveIntensity = v;
+    const dry = floor && (this.dryMaterials.get(floor) as MeshStandardMaterial | undefined);
+    if (dry) dry.emissiveIntensity = v;
+  }
+
   async load(glbUrl: string, manifestUrl: string): Promise<void> {
     const [gltf, manifest] = await Promise.all([
       new GLTFLoader().loadAsync(glbUrl),

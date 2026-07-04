@@ -391,10 +391,7 @@ fBuild.add(params, "objectOnRoof", 0, 1, 0.01).name("roof objects");
 // floor material live instead of rebuilding the instanced meshes
 const emissiveParams = { emissive: 1 };
 const emissiveCtrl = fBuild.add(emissiveParams, "emissive", 1, 50, 1).name("emissive")
-  .onChange((v: number) => {
-    const m = kit.materials?.floor as MeshStandardMaterial | undefined;
-    if (m) m.emissiveIntensity = v;
-  });
+  .onChange((v: number) => kit.setFloorEmissive(v));
 fBuild.add(params, "randomise", 0, 1000, 1).name("seed");
 // any building-settings change regenerates the mesh — except the emissive slider,
 // which only nudges the floor material (no need to rebuild ~900 instanced meshes)
