@@ -1,8 +1,9 @@
 import {
-  ACESFilmicToneMapping, Clock, Color, DoubleSide, Group, MathUtils,
-  Material, Mesh, MeshBasicMaterial, MeshNormalMaterial, MeshStandardMaterial,
-  PerspectiveCamera, PlaneGeometry, Scene, ShaderMaterial, SRGBColorSpace, Vector3,
-  WebGLRenderer,
+  ACESFilmicToneMapping, BufferGeometry, Clock, Color, DoubleSide, EdgesGeometry,
+  Group, InstancedMesh, LineBasicMaterial, LineSegments, MathUtils,
+  Material, Matrix4, Mesh, MeshBasicMaterial, MeshNormalMaterial, MeshStandardMaterial,
+  Object3D, PerspectiveCamera, PlaneGeometry, Raycaster, Scene, ShaderMaterial,
+  SRGBColorSpace, Vector2, Vector3, WebGLRenderer,
 } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import GUI from "lil-gui";
@@ -33,7 +34,7 @@ const scene = new Scene();
 
 // tight near/far ratio = far more usable depth precision (building is ~15u, orbit
 // distance is clamped to [3, 120] below), which kills most of the z-fighting
-const camera = new PerspectiveCamera(40, innerWidth / innerHeight, 0.5, 600);
+const camera = new PerspectiveCamera(30, innerWidth / innerHeight, 0.5, 600);
 camera.position.set(12, 7, 14);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -169,11 +170,96 @@ function regenerate(): void {
   env.frame(getBounds());
 }
 
+// ---- mesh inspector: hover a mesh to outline it + read its name/polycount ----
+const inspect = { enabled: false };
+const raycaster = new Raycaster();
+const pointer = new Vector2();
+let pointerInside = false;
+
+// bright edge overlay drawn on top of the hovered instance (depthTest off so it
+// reads through the building); geometry swapped per-hover from an edges cache
+const edgesCache = new Map<BufferGeometry, EdgesGeometry>();
+const outline = new LineSegments(
+  new BufferGeometry(),
+  new LineBasicMaterial({ color: 0x00e5ff, depthTest: false, transparent: true, opacity: 0.9 }),
+);
+outline.frustumCulled = false;
+outline.matrixAutoUpdate = false;
+outline.renderOrder = 999;
+outline.visible = false;
+scene.add(outline);
+
+// floating label (name + polycount) that follows the cursor
+const tip = document.createElement("div");
+tip.style.cssText =
+  "position:fixed;pointer-events:none;z-index:10;padding:4px 8px;border-radius:4px;" +
+  "background:rgba(0,0,0,0.8);color:#00e5ff;font:12px/1.4 monospace;white-space:nowrap;" +
+  "border:1px solid rgba(0,229,255,0.5);display:none;transform:translate(12px,12px)";
+document.body.appendChild(tip);
+
+function edgesFor(geom: BufferGeometry): EdgesGeometry {
+  let e = edgesCache.get(geom);
+  if (!e) edgesCache.set(geom, (e = new EdgesGeometry(geom, 30)));
+  return e;
+}
+
+function triCount(geom: BufferGeometry): number {
+  const n = geom.index ? geom.index.count : geom.getAttribute("position").count;
+  return Math.floor(n / 3);
+}
+
+/** true only for pickable opaque building instances (skip the hidden snow shell) */
+function isPickable(o: Object3D): boolean {
+  for (let p: Object3D | null = o; p; p = p.parent) {
+    if (!p.visible) return false;
+    if (p.name === "snowShell") return false;
+  }
+  return true;
+}
+
+const _instMat = new Matrix4();
+function clearInspect(): void {
+  outline.visible = false;
+  tip.style.display = "none";
+}
+function updateInspect(): void {
+  if (!inspect.enabled || !pointerInside || !building) return clearInspect();
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObject(building, true);
+  const hit = hits.find(
+    h => (h.object as InstancedMesh).isInstancedMesh && isPickable(h.object),
+  );
+  if (!hit) return clearInspect();
+  const im = hit.object as InstancedMesh;
+  const geom = im.geometry;
+  outline.geometry = edgesFor(geom);
+  // world matrix of the hovered instance = mesh world * per-instance matrix
+  im.getMatrixAt(hit.instanceId!, _instMat);
+  outline.matrix.copy(im.matrixWorld).multiply(_instMat);
+  outline.matrixWorld.copy(outline.matrix);
+  outline.visible = true;
+  tip.textContent = `${im.name}  •  ${triCount(geom).toLocaleString()} tris  •  #${hit.instanceId}`;
+  tip.style.display = "block";
+}
+
+renderer.domElement.addEventListener("pointermove", e => {
+  const r = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  pointer.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  pointerInside = true;
+  tip.style.left = `${e.clientX}px`;
+  tip.style.top = `${e.clientY}px`;
+});
+renderer.domElement.addEventListener("pointerleave", () => {
+  pointerInside = false;
+  clearInspect();
+});
+
 // cinematic post-processing (ported from SnowSystemThreeJS)
 const post = new PostFX(renderer, scene, camera);
 
 // cinematic camera prefs — auto-orbit via OrbitControls, plus fov + letterbox
-const cine = { autoOrbit: false, orbitSpeed: 0.6, fov: 40, letterbox: false };
+const cine = { autoOrbit: false, orbitSpeed: 0.6, fov: 30, letterbox: false };
 controls.autoRotate = cine.autoOrbit;
 controls.autoRotateSpeed = cine.orbitSpeed;
 camera.fov = cine.fov;
@@ -246,9 +332,9 @@ const gui = new GUI({ title: "hong kong building" });
 
 // --- building settings (top of the list): every generator param, flat ---
 const fBuild = gui.addFolder("building settings");
-fBuild.add(params, "floor", 3, 14, 1);
-fBuild.add(params, "length", 2, 16, 1);
-fBuild.add(params, "width", 2, 10, 1);
+fBuild.add(params, "floor", 3, 40, 1);
+fBuild.add(params, "length", 2, 40, 1);
+fBuild.add(params, "width", 2, 40, 1);
 fBuild.add(params, "acUnit", 0, 1, 0.01).name("AC unit");
 fBuild.add(params, "roofProbability", 0, 1, 0.01).name("window awning");
 fBuild.add(params, "clothlineProbability", 0, 1, 0.01).name("clothline");
@@ -263,6 +349,14 @@ fBuild.add(params, "objectOnRoof", 0, 1, 0.01).name("roof objects");
 fBuild.add(params, "randomise", 0, 1000, 1).name("seed");
 // any building-settings change regenerates the mesh
 fBuild.onChange(() => regenerate());
+
+// --- debug: hover a mesh to inspect its contour, name + polycount ---
+const fDebug = gui.addFolder("debug");
+fDebug.add(inspect, "enabled").name("inspect meshes").onChange((v: boolean) => {
+  if (!v) clearInspect();
+  renderer.domElement.style.cursor = v ? "crosshair" : "";
+});
+fDebug.close();
 
 env.addGui(gui);
 
@@ -391,5 +485,6 @@ renderer.setAnimationLoop(() => {
     snow.update();
   }
   updateFocusPlane(dt);
+  updateInspect();
   post.render(dt);
 });

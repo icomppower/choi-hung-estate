@@ -212,6 +212,7 @@ export class Kit {
         ] as const) {
           if (!geom || list.length === 0) continue;
           const im = new InstancedMesh(geom, mesh.material as Material, list.length);
+          im.name = key; // e.g. COL[roof][2] — used by the hover inspector
           im.castShadow = true;
           im.receiveShadow = true;
           for (let i = 0; i < list.length; i++) im.setMatrixAt(i, list[i]);
