@@ -181,6 +181,8 @@ export class Kit {
 
     const tmp = new Matrix4();
     for (const [key, matrices] of byPart) {
+      // interior parts (rooms / store interiors) never see the sky — no snow shell
+      const noSnow = key.includes("ROOMS") || key.includes("storeinside");
       const part = this.parts.get(key);
       if (!part) {
         if (!this.warned.has(key)) {
@@ -221,7 +223,7 @@ export class Kit {
 
           // snow shell pass for opaque kit materials: same geometry, SAME
           // instanceMatrix buffer — only the vertex shader extrudes it
-          if (this.snowShellMaterial &&
+          if (this.snowShellMaterial && !noSnow &&
               (mesh.material === this.materials.building || mesh.material === this.materials.floor)) {
             const shell = new InstancedMesh(geom, this.snowShellMaterial, list.length);
             shell.instanceMatrix = im.instanceMatrix;
