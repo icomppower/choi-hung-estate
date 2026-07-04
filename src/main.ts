@@ -53,11 +53,10 @@ const env = new Environment(scene, renderer);
 // ground
 const ground = new Mesh(
   new PlaneGeometry(600, 600),
-  new MeshStandardMaterial({ color: 0x2b2926, roughness: 0.96, metalness: 0 }),
+  new MeshStandardMaterial({ color: 0x404040, roughness: 1, metalness: 1 }),
 );
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
-ground.visible = false; // ground plane hidden for now
 scene.add(ground);
 
 // Blender is Z-up: build everything in Blender space inside a rotated root.
@@ -399,11 +398,35 @@ fBuild.onChange(ev => {
   if (ev.controller !== emissiveCtrl) regenerate();
 });
 
+// --- fps counter (debug) — a small corner overlay, updated ~twice a second ---
+const fpsState = { enabled: false };
+const fpsEl = document.createElement("div");
+fpsEl.style.cssText =
+  "position:fixed;top:8px;left:8px;z-index:10;padding:3px 7px;border-radius:4px;" +
+  "background:rgba(0,0,0,0.7);color:#7CFC00;font:12px/1.3 monospace;pointer-events:none;display:none";
+document.body.appendChild(fpsEl);
+let fpsLastT = performance.now();
+let fpsFrames = 0;
+function updateFps(): void {
+  if (!fpsState.enabled) return;
+  fpsFrames++;
+  const now = performance.now();
+  if (now - fpsLastT >= 500) {
+    fpsEl.textContent = `${Math.round((fpsFrames * 1000) / (now - fpsLastT))} fps`;
+    fpsFrames = 0;
+    fpsLastT = now;
+  }
+}
+
 // --- debug: hover a mesh to inspect its contour, name + polycount ---
 const fDebug = gui.addFolder("debug");
 fDebug.add(inspect, "enabled").name("inspect meshes").onChange((v: boolean) => {
   if (!v) clearInspect();
   renderer.domElement.style.cursor = v ? "crosshair" : "";
+});
+fDebug.add(fpsState, "enabled").name("fps").onChange((v: boolean) => {
+  fpsEl.style.display = v ? "block" : "none";
+  if (v) { fpsLastT = performance.now(); fpsFrames = 0; } // clean first reading
 });
 fDebug.close();
 
@@ -582,5 +605,6 @@ renderer.setAnimationLoop(() => {
   }
   updateFocusPlane(dt);
   updateInspect();
+  updateFps();
   post.render(dt);
 });
