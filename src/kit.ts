@@ -46,6 +46,9 @@ function buildMaterials(): Record<string, Material> {
     roughness: 1,
     metalnessMap: tex(loader, "/textures/floor_Metallic.png"),
     metalness: 1,
+    emissiveMap: tex(loader, "/textures/floor_Base_Emissive.png", true),
+    emissive: new Color(0xffffff),
+    emissiveIntensity: 1, // driven by the "emissive" slider in building settings (1–50)
     alphaMap: tex(loader, "/textures/floor_alpha.png"),
     alphaTest: 0.5, // cutout — no blend-sorting artifacts
     side: DoubleSide,

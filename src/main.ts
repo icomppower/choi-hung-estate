@@ -387,9 +387,20 @@ fBuild.add(params, "roofOnStore", 0, 1, 0.01).name("roof on store");
 fBuild.add(params, "objectOnGround", 0, 1, 0.01).name("ground objects");
 fBuild.add(params, "storeSign", 0, 1, 0.01).name("store sign");
 fBuild.add(params, "objectOnRoof", 0, 1, 0.01).name("roof objects");
+// floor emissive multiplier (glowing signage) — a material tweak, so it updates the
+// floor material live instead of rebuilding the instanced meshes
+const emissiveParams = { emissive: 1 };
+const emissiveCtrl = fBuild.add(emissiveParams, "emissive", 1, 50, 1).name("emissive")
+  .onChange((v: number) => {
+    const m = kit.materials?.floor as MeshStandardMaterial | undefined;
+    if (m) m.emissiveIntensity = v;
+  });
 fBuild.add(params, "randomise", 0, 1000, 1).name("seed");
-// any building-settings change regenerates the mesh
-fBuild.onChange(() => regenerate());
+// any building-settings change regenerates the mesh — except the emissive slider,
+// which only nudges the floor material (no need to rebuild ~900 instanced meshes)
+fBuild.onChange(ev => {
+  if (ev.controller !== emissiveCtrl) regenerate();
+});
 
 // --- debug: hover a mesh to inspect its contour, name + polycount ---
 const fDebug = gui.addFolder("debug");
