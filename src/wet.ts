@@ -32,6 +32,7 @@ export interface WetUniforms {
   uRippleDensity: { value: number };
   // procedural wetness mask (world-XZ FBM, like the asphalt puddles / snow patches)
   uPuddleScale: { value: number };
+  uPuddleHeightVar: { value: number };
   uPuddleSeed: { value: Vector2 };
   uPuddleCoverage: { value: number };
   uPuddleEdge: { value: number };
@@ -55,6 +56,7 @@ export function createWetUniforms(uTime: { value: number }, uWind: { value: Vect
     uRippleDensity: { value: 0.2 },
     // where the surface is wet vs dry — a blotchy FBM field in world XZ
     uPuddleScale: { value: 0.35 },  // mask noise frequency (smaller = bigger patches)
+    uPuddleHeightVar: { value: 0.6 }, // how much world-Y shears the mask (breaks per-floor repeat)
     uPuddleSeed: { value: new Vector2(13.7, 4.2) }, // pan the noise field
     uPuddleCoverage: { value: 0.6 }, // 0 = bone dry, 1 = fully wet
     uPuddleEdge: { value: 0.1 },    // wet/dry shoreline softness
@@ -79,6 +81,7 @@ uniform float uRippleScale;
 uniform float uRippleSpeed;
 uniform float uRippleDensity;
 uniform float uPuddleScale;
+uniform float uPuddleHeightVar;
 uniform vec2  uPuddleSeed;
 uniform float uPuddleCoverage;
 uniform float uPuddleEdge;
@@ -114,8 +117,12 @@ float wetFbm(vec2 p) {
   return value;
 }
 // 0 (dry) .. 1 (wet) blotches in world XZ — scale/coverage/seed/edge driven.
-float wetPuddleMaskAt(vec2 worldXZ) {
-  float n = wetFbm(worldXZ * uPuddleScale + uPuddleSeed) * 0.5 + 0.5;
+float wetPuddleMaskAt(vec3 worldP) {
+  // Shear the XZ sample by world height so wetness varies floor-to-floor rather
+  // than projecting one pattern down the facade. Coefficients differ from the
+  // snow mask's so the two effects never coincide when overlaid.
+  vec2 xz = worldP.xz + worldP.y * uPuddleHeightVar * vec2(-1.1, 0.9);
+  float n = wetFbm(xz * uPuddleScale + uPuddleSeed) * 0.5 + 0.5;
   float threshold = 1.0 - uPuddleCoverage;
   return smoothstep(threshold - uPuddleEdge, threshold + uPuddleEdge, n);
 }
@@ -233,7 +240,7 @@ export function applyWet(material: Material, u: WetUniforms): void {
         "#include <map_fragment>",
         `#include <map_fragment>
         float upN = vWetWorldN.y;
-        float pmask = wetPuddleMaskAt(vWetWorldP.xz); // patchy wet/dry coverage
+        float pmask = wetPuddleMaskAt(vWetWorldP); // patchy wet/dry coverage
         float wetBase = uWet * uWetness * smoothstep(-0.3, 0.6, upN) * pmask;
         float topMask = uWet * uTopPuddle * smoothstep(uFlatThreshold, min(uFlatThreshold + 0.15, 1.0), upN) * pmask;
         float beads = wetDropletMask(vWetWorldP) * uDropletAmount * wetBase;

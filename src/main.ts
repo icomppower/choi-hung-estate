@@ -450,6 +450,7 @@ const fAccum = fSnow.addFolder("accumulation");
 fAccum.add(accumU.uSnowCoverage, "value", 0, 1, 0.01).name("coverage");
 fAccum.add(accumU.uSnowScale, "value", 0.1, 4, 0.01).name("patch scale");
 fAccum.add(accumU.uSnowEdge, "value", 0.01, 0.4, 0.005).name("patch softness");
+fAccum.add(accumU.uSnowHeightVar, "value", 0, 2, 0.01).name("height variation");
 fAccum.add(accumU.uSnowSeed.value, "x", -50, 50, 0.1).name("seed x").listen();
 fAccum.add(accumU.uSnowSeed.value, "y", -50, 50, 0.1).name("seed y").listen();
 fAccum.add({ randomize: () => accumU.uSnowSeed.value.set((Math.random() - 0.5) * 100, (Math.random() - 0.5) * 100) },
@@ -482,6 +483,7 @@ const fWet = fRain.addFolder("wetness");
 fWet.add(wetU.uPuddleCoverage, "value", 0, 1, 0.01).name("coverage");
 fWet.add(wetU.uPuddleScale, "value", 0.02, 2, 0.01).name("mask scale");
 fWet.add(wetU.uPuddleEdge, "value", 0.001, 0.4, 0.001).name("mask softness");
+fWet.add(wetU.uPuddleHeightVar, "value", 0, 2, 0.01).name("height variation");
 fWet.add(wetU.uPuddleSeed.value, "x", -50, 50, 0.1).name("seed x").listen();
 fWet.add(wetU.uPuddleSeed.value, "y", -50, 50, 0.1).name("seed y").listen();
 fWet.add({ randomize: () => wetU.uPuddleSeed.value.set((Math.random() - 0.5) * 100, (Math.random() - 0.5) * 100) },

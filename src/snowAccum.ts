@@ -18,6 +18,7 @@ export interface SnowAccumUniforms {
   uTime: { value: number };
   uSnowSeed: { value: Vector2 };
   uSnowScale: { value: number };
+  uSnowHeightVar: { value: number };
   uSnowCoverage: { value: number };
   uSnowEdge: { value: number };
   uSnowThickness: { value: number };
@@ -35,6 +36,7 @@ export function createSnowAccumUniforms(uTime: { value: number }): SnowAccumUnif
     uTime,
     uSnowSeed: { value: new Vector2(3.0, 7.0) },
     uSnowScale: { value: 0.6 },        // coverage noise frequency (world units)
+    uSnowHeightVar: { value: 0.35 },   // how much world-Y shears the mask (breaks per-floor repeat)
     uSnowCoverage: { value: 0.7 },     // 0 = bare, 1 = fully capped
     uSnowEdge: { value: 0.15 },        // coverage shoreline softness
     uSnowThickness: { value: 0.01 },   // displaced layer depth (world units)
@@ -54,6 +56,7 @@ varying vec3 vSnowWorldP;
 uniform float uTime;
 uniform vec2  uSnowSeed;
 uniform float uSnowScale;
+uniform float uSnowHeightVar;
 uniform float uSnowCoverage;
 uniform float uSnowEdge;
 uniform float uSnowThickness;
@@ -99,15 +102,19 @@ float snowHash21(vec2 p) {
   p += dot(p, p + 34.345);
   return fract(p.x * p.y);
 }
-float snowCoverageMask(vec2 worldXZ) {
-  float n = snowFbm(worldXZ * uSnowScale + uSnowSeed) * 0.5 + 0.5;
+float snowCoverageMask(vec3 worldP) {
+  // Shear the XZ sample by world height so the mask varies floor-to-floor
+  // instead of projecting the same pattern down the whole facade. The distinct
+  // per-axis coefficients also decorrelate this from the wet mask.
+  vec2 xz = worldP.xz + worldP.y * uSnowHeightVar * vec2(0.7, -1.3);
+  float n = snowFbm(xz * uSnowScale + uSnowSeed) * 0.5 + 0.5;
   float threshold = 1.0 - uSnowCoverage;
   return smoothstep(threshold - uSnowEdge, threshold + uSnowEdge, n);
 }
-float snowAccumAt(vec3 worldNormal, vec2 worldXZ) {
+float snowAccumAt(vec3 worldNormal, vec3 worldP) {
   float up = clamp(worldNormal.y, 0.0, 1.0);
   float top = smoothstep(uSnowFlatThreshold, 1.0, up);
-  return top * snowCoverageMask(worldXZ);
+  return top * snowCoverageMask(worldP);
 }
 vec3 snowReliefNormal(vec2 worldXZ) {
   float e = 0.04;
@@ -163,7 +170,7 @@ export function createSnowShellMaterial(u: SnowAccumUniforms): MeshStandardMater
         vSnowWorldP = snowWP.xyz;
         vec3 snowWN = snowNMat * objectNormal;
         float snowMs = max(length(snowWN), 1e-4);
-        float snowAccumV = snowAccumAt(snowWN / snowMs, vSnowWorldP.xz);
+        float snowAccumV = snowAccumAt(snowWN / snowMs, vSnowWorldP);
         transformed += normalize(objectNormal) * (uSnowThickness * snowAccumV / snowMs);`,
       );
 
@@ -173,7 +180,7 @@ export function createSnowShellMaterial(u: SnowAccumUniforms): MeshStandardMater
         "#include <map_fragment>",
         `#include <map_fragment>
         vec3 snowWn = normalize(vSnowWorldN);
-        float snowAmt = snowAccumAt(snowWn, vSnowWorldP.xz);
+        float snowAmt = snowAccumAt(snowWn, vSnowWorldP);
         if (snowAmt < 0.12) discard; // shell only exists where snow settled
         float snowShade = 0.85 + 0.15 * (snowFbm(vSnowWorldP.xz * uSnowBumpScale * 2.0) * 0.5 + 0.5);
         float snowSp = snowHash21(floor(vSnowWorldP.xz * uSnowSparkleScale));
