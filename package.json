@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "author": {
+    "name": "Johnny Lai",
+    "url": "https://www.linkedin.com/in/icomppower"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

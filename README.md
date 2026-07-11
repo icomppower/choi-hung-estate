@@ -1,5 +1,7 @@
 # BuildingGeneratorThreeJS
 
+> Fork maintained by **Johnny Lai** ([LinkedIn](https://www.linkedin.com/in/icomppower)) — base for the [九龍城寨 · Kowloon Walled City](https://app.notion.com/p/39a1f269eaea816cb43bc1cd667d4d98) narrated map project.
+
 A procedural Hong Kong building generator for Three.js, ported from a Blender
 geometry-nodes setup (`procedural-hong-kong-building/source/procedural_building.blend`).
 Original model URL : https://sketchfab.com/3d-models/procedural-hong-kong-building-528a732e84c44fd49c4726f341014a23

@@ -56,6 +56,13 @@
         user-select: none;
       }
       .credit b { color: var(--accent); font-weight: 600; }
+      .credit a {
+        color: inherit;
+        pointer-events: auto;
+        text-decoration: none;
+        border-bottom: 1px dotted rgba(255, 255, 255, 0.35);
+      }
+      .credit a:hover { color: var(--accent); }
 
       /* ---- Stylized lil-gui panel ---- */
       .lil-gui {
@@ -125,6 +132,7 @@
     <div id="loading">Loading asset kit…</div>
     <div class="credit">
       <b>HK BUILDING STUDIO</b> · drag to orbit · scroll to zoom · tweak the panel to regenerate
+      · dev: <a href="https://www.linkedin.com/in/icomppower" target="_blank" rel="noopener">Johnny Lai</a>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
