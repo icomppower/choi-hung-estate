@@ -77,6 +77,7 @@ interface Manifest {
 }
 
 const MIRROR_X = new Matrix4().makeScale(-1, 1, 1);
+const WHITE = new Color(0xffffff);
 
 export class Kit {
   private parts = new Map<string, Object3D>();
@@ -187,11 +188,12 @@ export class Kit {
   /** Build a Group of InstancedMeshes from placements (matrices in Blender Z-up space). */
   buildGroup(placements: Placement[]): Group {
     const group = new Group();
-    const byPart = new Map<string, Matrix4[]>();
+    interface Item { matrix: Matrix4; tint?: Color }
+    const byPart = new Map<string, Item[]>();
     for (const pl of placements) {
       let list = byPart.get(pl.key);
       if (!list) byPart.set(pl.key, (list = []));
-      list.push(pl.matrix);
+      list.push({ matrix: pl.matrix, tint: pl.tint });
     }
 
     // separate layer of duplicated (buffer-shared) meshes that the snow shader
@@ -223,12 +225,12 @@ export class Kit {
 
         // split instances by determinant sign: mirrored placements get the
         // mirror baked into the geometry instead of the matrix (see mirroredGeometry)
-        const plain: Matrix4[] = [];
-        const mirrored: Matrix4[] = [];
-        for (const m of matrices) {
-          tmp.copy(m).multiply(meshLocal);
-          if (tmp.determinant() < 0) mirrored.push(tmp.clone().multiply(MIRROR_X));
-          else plain.push(tmp.clone());
+        const plain: Item[] = [];
+        const mirrored: Item[] = [];
+        for (const it of matrices) {
+          tmp.copy(it.matrix).multiply(meshLocal);
+          if (tmp.determinant() < 0) mirrored.push({ matrix: tmp.clone().multiply(MIRROR_X), tint: it.tint });
+          else plain.push({ matrix: tmp.clone(), tint: it.tint });
         }
         for (const [geom, list] of [
           [mesh.geometry, plain],
@@ -243,8 +245,16 @@ export class Kit {
           im.name = key; // e.g. COL[roof][2] — used by the hover inspector
           im.castShadow = true;
           im.receiveShadow = true;
-          for (let i = 0; i < list.length; i++) im.setMatrixAt(i, list[i]);
+          // paint tint only ever targets the facade materials (building/floor) — glass,
+          // AC units, curtains etc. stay untouched even if a placement carries a tint
+          const tintable = !interior && (baseMat === this.materials.building || baseMat === this.materials.floor);
+          const hasTint = tintable && list.some(it => it.tint);
+          for (let i = 0; i < list.length; i++) {
+            im.setMatrixAt(i, list[i].matrix);
+            if (hasTint) im.setColorAt(i, list[i].tint ?? WHITE);
+          }
           im.instanceMatrix.needsUpdate = true;
+          if (im.instanceColor) im.instanceColor.needsUpdate = true;
           group.add(im);
 
           // snow shell pass for opaque kit materials: same geometry, SAME

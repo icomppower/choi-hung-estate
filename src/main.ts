@@ -13,6 +13,10 @@ import {
   defaultCityParams, generateCityLayout, generateCityPlacements, buildWalkways,
   type CityParams, type CityLayout,
 } from "./city";
+import {
+  defaultEstateParams, generateEstateLayout, generateEstatePlacements,
+  type EstateParams, type EstateLayout,
+} from "./estate";
 import { Kit } from "./kit";
 import { Environment, type Bounds } from "./environment";
 import { PostFX } from "./postfx";
@@ -75,8 +79,8 @@ const params: BuildingParams = defaultParams();
 let building: Group | null = null;
 
 // ---- Kowloon Walled City district mode: many micro-plots, packed dense, bridged ----
-// on by default — this is the actual point of the project, not just the base generator
-const cityMode = { enabled: true };
+// off by default on this fork — this repo's headline mode is the estate below
+const cityMode = { enabled: false };
 const cityParams: CityParams = defaultCityParams();
 let cityGroup: Group | null = null;
 let lastCityLayout: CityLayout | null = null;
@@ -96,6 +100,30 @@ function getCityBounds(layout: CityLayout): Bounds {
   return { center: new Vector3(0, h / 2, 0), radius: 0.55 * Math.hypot(span, span, h) };
 }
 
+// ---- Choi Hung Estate district mode: rainbow slab blocks + low walkup blocks on ----
+// a curved arc enclosing a central plaza — on by default, this fork's headline mode
+const estateMode = { enabled: true };
+const estateParams: EstateParams = defaultEstateParams();
+let estateGroup: Group | null = null;
+let lastEstateLayout: EstateLayout | null = null;
+const estateReadoutState = { readout: "—" };
+
+function updateEstateReadout(layout: EstateLayout): void {
+  const c = layout.coverage;
+  const slabs = layout.blocks.filter(b => b.kind === "slab").length;
+  const walkups = layout.blocks.length - slabs;
+  estateReadoutState.readout = c.enclosed
+    ? `✓ enclosed · ${slabs} slab + ${walkups} walkup · gap ${c.minGap.toFixed(1)}–${c.maxGap.toFixed(1)}u`
+    : `✗ overlap/gap · min ${c.minGap.toFixed(1)}u max ${c.maxGap.toFixed(1)}u`;
+}
+
+function getEstateBounds(layout: EstateLayout): Bounds {
+  const maxFloor = layout.blocks.reduce((m, b) => Math.max(m, b.params.floor), 3);
+  const span = estateParams.radius * 2 + 10;
+  const h = maxFloor + 1;
+  return { center: new Vector3(0, h / 2, 0), radius: 0.55 * Math.hypot(span, span, h) };
+}
+
 function disposeGroup(g: Group): void {
   g.traverse(o => {
     const im = o as { isInstancedMesh?: boolean; dispose?: () => void };
@@ -104,9 +132,14 @@ function disposeGroup(g: Group): void {
 }
 
 /** pulls the camera back to frame the whole district (or back to the single-building
- *  default) — called whenever city mode is toggled, from the GUI or a dev hook alike */
-function frameCameraForMode(cityOn: boolean): void {
-  if (cityOn && lastCityLayout) {
+ *  default) — called whenever city/estate mode is toggled, from the GUI or a dev hook */
+function frameCameraForMode(): void {
+  if (estateMode.enabled && lastEstateLayout) {
+    const b = getEstateBounds(lastEstateLayout);
+    const d = b.radius * 1.7;
+    camera.position.set(d * 0.55, b.center.y + d * 0.45, d * 0.75);
+    controls.target.set(0, b.center.y * 0.6, 0);
+  } else if (cityMode.enabled && lastCityLayout) {
     const b = getCityBounds(lastCityLayout);
     const d = b.radius * 1.7;
     camera.position.set(d * 0.55, b.center.y + d * 0.45, d * 0.75);
@@ -254,8 +287,27 @@ function regenerate(): void {
     disposeGroup(cityGroup);
     cityGroup = null;
   }
+  if (estateGroup) {
+    root.remove(estateGroup);
+    disposeGroup(estateGroup);
+    estateGroup = null;
+  }
 
-  if (cityMode.enabled) {
+  if (estateMode.enabled) {
+    const layout = generateEstateLayout(estateParams);
+    lastEstateLayout = layout;
+    estateGroup = kit.buildGroup(generateEstatePlacements(layout, kit));
+    applyDebugMaterials(estateGroup);
+    root.add(estateGroup);
+    updateEstateReadout(layout);
+    console.log(
+      `[choi hung estate] ${layout.coverage.blockCount} blocks — ` +
+      `${layout.coverage.enclosed ? "arc encloses plaza" : "GAP IN ARC"} ` +
+      `(max gap ${layout.coverage.maxGap.toFixed(2)}u)`,
+    );
+    applySnowEnabled(snowState.enabled);
+    env.frame(getEstateBounds(layout));
+  } else if (cityMode.enabled) {
     const layout = generateCityLayout(cityParams);
     lastCityLayout = layout;
     cityGroup = kit.buildGroup(generateCityPlacements(layout, kit));
@@ -332,7 +384,7 @@ function clearInspect(): void {
   tip.style.display = "none";
 }
 function updateInspect(): void {
-  const target = cityGroup ?? building;
+  const target = estateGroup ?? cityGroup ?? building;
   if (!inspect.enabled || !pointerInside || !target) return clearInspect();
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObject(target, true);
@@ -438,7 +490,7 @@ function updateFocusPlane(dt: number): void {
 }
 
 // ---- GUI ----
-const gui = new GUI({ title: "hong kong building" });
+const gui = new GUI({ title: "choi hung estate" });
 
 // --- building settings (top of the list): every generator param, flat ---
 const fBuild = gui.addFolder("building settings");
@@ -474,8 +526,14 @@ fBuild.onChange(ev => {
 // that's force-completed to stay fully traversable — see src/city.ts.
 const fCity = gui.addFolder("🏙️ walled city");
 fCity.add(cityMode, "enabled").name("enabled").onChange((v: boolean) => {
+  // city and estate district modes are mutually exclusive — only one district
+  // renders at a time (both can still fall back to the single-building demo)
+  if (v && estateMode.enabled) {
+    estateMode.enabled = false;
+    gui.controllersRecursive().forEach(c => c.updateDisplay());
+  }
   regenerate();
-  frameCameraForMode(v);
+  frameCameraForMode();
 });
 fCity.add(cityParams, "gridSize", 3, 12, 1).name("grid size");
 fCity.add(cityParams, "cellSize", 1.4, 4, 0.05).name("plot spacing");
@@ -486,6 +544,30 @@ fCity.add(cityParams, "walkwayChance", 0, 1, 0.01).name("walkway chance");
 fCity.add(cityParams, "seed", 0, 999, 1).name("seed");
 fCity.onChange(() => { if (cityMode.enabled) regenerate(); });
 fCity.add(connectivityState, "readout").name("walkway network").listen().disable();
+fCity.close();
+
+// --- 🌈 choi hung estate: rainbow slab blocks + low walkup blocks placed on a ----
+// curved arc enclosing a central plaza — see src/estate.ts for the arc-placement
+// and per-block colour-tint mechanics.
+const fEstate = gui.addFolder("🌈 choi hung estate");
+fEstate.add(estateMode, "enabled").name("enabled").onChange((v: boolean) => {
+  if (v && cityMode.enabled) {
+    cityMode.enabled = false;
+    gui.controllersRecursive().forEach(c => c.updateDisplay());
+  }
+  regenerate();
+  frameCameraForMode();
+});
+fEstate.add(estateParams, "slabCount", 3, 12, 1).name("slab blocks (rainbow)");
+fEstate.add(estateParams, "walkupCount", 0, 12, 1).name("walkup blocks");
+fEstate.add(estateParams, "radius", 4, 25, 0.5).name("arc radius");
+fEstate.add(estateParams, "arcStart", -360, 360, 1).name("arc start °");
+fEstate.add(estateParams, "arcSpan", 60, 360, 1).name("arc span °");
+fEstate.add(estateParams, "slabFloors", 6, 30, 1).name("slab floors");
+fEstate.add(estateParams, "walkupFloors", 2, 15, 1).name("walkup floors");
+fEstate.add(estateParams, "seed", 0, 999, 1).name("seed");
+fEstate.onChange(() => { if (estateMode.enabled) regenerate(); });
+fEstate.add(estateReadoutState, "readout").name("arc coverage").listen().disable();
 
 // --- fps counter (debug) — a small corner overlay, updated ~twice a second ---
 const fpsState = { enabled: false };
@@ -635,11 +717,22 @@ devWindow.__setParams = p => {
 (devWindow as { __setCity?: (enabled: boolean, p?: Partial<CityParams>) => CityLayout | null }).__setCity =
   (enabled, p) => {
     cityMode.enabled = enabled;
+    if (enabled) estateMode.enabled = false;
     if (p) Object.assign(cityParams, p);
     gui.controllersRecursive().forEach(c => c.updateDisplay());
     regenerate();
-    frameCameraForMode(enabled);
+    frameCameraForMode();
     return lastCityLayout;
+  };
+(devWindow as { __setEstate?: (enabled: boolean, p?: Partial<EstateParams>) => EstateLayout | null }).__setEstate =
+  (enabled, p) => {
+    estateMode.enabled = enabled;
+    if (enabled) cityMode.enabled = false;
+    if (p) Object.assign(estateParams, p);
+    gui.controllersRecursive().forEach(c => c.updateDisplay());
+    regenerate();
+    frameCameraForMode();
+    return lastEstateLayout;
   };
 devWindow.__setCamera = (px, py, pz, tx, ty, tz) => {
   controls.autoRotate = false;
@@ -673,7 +766,7 @@ kit.load(`${import.meta.env.BASE_URL}assets/kit.glb`, `${import.meta.env.BASE_UR
   applyWet(kit.materials.building, wetU);
   applyWet(kit.materials.floor, wetU);
   regenerate();
-  frameCameraForMode(cityMode.enabled);
+  frameCameraForMode();
 }).catch(err => {
   const el = document.getElementById("loading");
   if (el) el.textContent = `FAILED TO LOAD KIT: ${err}`;

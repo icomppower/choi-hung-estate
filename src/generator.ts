@@ -12,13 +12,17 @@
  *   every geometry separation, and unlinked Pick-Instance indices default to the
  *   element index (mod child count).
  */
-import { Matrix4, Vector3, Quaternion, Euler } from "three";
+import { Color, Matrix4, Vector3, Quaternion, Euler } from "three";
 import type { BuildingParams } from "./params";
 import { randBool, randInt, randVecComponent } from "./rng";
 
 export interface Placement {
   key: string;
   matrix: Matrix4;
+  /** per-instance paint tint (multiplied over the base texture) — used by district
+   *  layers (e.g. Choi Hung's rainbow colour bands) to recolour a whole block's
+   *  facade without touching the shared "building"/"floor" materials or textures. */
+  tint?: Color;
 }
 
 export interface KitCounts {

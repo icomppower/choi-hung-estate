@@ -1,9 +1,19 @@
-# BuildingGeneratorThreeJS
+# 🌈 彩虹邨 Choi Hung Estate
 
-> Fork maintained by **Johnny Lai** ([LinkedIn](https://www.linkedin.com/in/icomppower)) — base for the [九龍城寨 · Kowloon Walled City](https://app.notion.com/p/39a1f269eaea816cb43bc1cd667d4d98) narrated map project.
+> Maintained by **Johnny Lai** ([LinkedIn](https://www.linkedin.com/in/icomppower)) — part of the [Narrated History Map](https://app.notion.com/p/39a1f269eaea8187881ccf72882077b6) series, forked from [BuildingGeneratorThreeJS](https://github.com/icomppower/BuildingGeneratorThreeJS) (also the base for [九龍城寨 · Kowloon Walled City](https://github.com/icomppower/kowloon-walled-city)).
 
 A procedural Hong Kong building generator for Three.js, ported from a Blender
-geometry-nodes setup (`procedural-hong-kong-building/source/procedural_building.blend`).
+geometry-nodes setup (`procedural-hong-kong-building/source/procedural_building.blend`),
+extended here with two new district-layer capabilities:
+
+- **Colour-band material** (`src/estate.ts` + `src/kit.ts`) — each of the 7 rainbow
+  slab blocks (Yin/Hung/Choi/Fai/Tak/Po/Che) gets a fixed per-instance paint tint on
+  its facade, layered on top of the shared texture-mapped material with zero bleed
+  between blocks.
+- **Curved/arc placement** (`src/estate.ts`) — blocks are laid out at even angular
+  steps around a circle enclosing the estate's central plaza, instead of the base
+  generator's rectilinear lot grid.
+
 Original model URL : https://sketchfab.com/3d-models/procedural-hong-kong-building-528a732e84c44fd49c4726f341014a23
 
 The original 592-node "build system" node group was reverse-engineered into a
@@ -35,7 +45,9 @@ blender --background procedural-hong-kong-building/source/procedural_building.bl
 ## Structure
 
 - `src/generator.ts` — the ported node graph: grids, seeded RNG, placements
-- `src/kit.ts` — GLB kit loader + InstancedMesh builder
+- `src/kit.ts` — GLB kit loader + InstancedMesh builder (incl. per-instance colour tint)
+- `src/estate.ts` — Choi Hung Estate district layer: arc placement + colour bands
+- `src/city.ts` — Kowloon Walled City district layer (dense grid + walkway graph)
 - `src/rng.ts` — Blender-style hash(id, seed) random values
 - `src/main.ts` — scene, lighting, lil-gui controls
-- `tools/` — Blender headless scripts (kit export, node-graph dump)
+- `tools/` — Blender headless scripts (kit export, node-graph dump), Puppeteer snapshot scripts
