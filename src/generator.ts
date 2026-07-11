@@ -52,7 +52,15 @@ interface Local {
   local: Matrix4;
   /** origin x in facade space, used by the side-B column filter */
   ox: number;
+  /** per-instance paint tint, set only on the wall panel piece when a cellTint
+   *  callback is supplied to windowCellContent — see Placement.tint */
+  tint?: Color;
 }
+
+/** per-window-cell tint hook (facade-local column x, row z, cell index) — used by
+ *  district layers (e.g. Choi Hung's pastel colour-panel mosaic) to recolour
+ *  individual wall panels instead of the whole facade in one flat hue */
+export type CellTint = (x: number, z: number, i: number) => Color | undefined;
 
 const _q = new Quaternion();
 const _e = new Euler();
@@ -84,14 +92,16 @@ interface GridCfg {
   acFirstFloorCut: boolean;
 }
 
-function windowCellContent(p: BuildingParams, cfg: GridCfg, counts: KitCounts): Local[] {
+function windowCellContent(
+  p: BuildingParams, cfg: GridCfg, counts: KitCounts, cellTint?: CellTint,
+): Local[] {
   const out: Local[] = [];
   const seed = p.randomise;
   const floor = p.floor;
   const emit = (key: string, c: Cell, dx: number, dy: number, dz: number,
-                rz = 0, sx = 1, sy = 1, sz = 1, pre?: Matrix4) => {
+                rz = 0, sx = 1, sy = 1, sz = 1, pre?: Matrix4, tint?: Color) => {
     const x = c.x + dx;
-    out.push({ key, local: localM(x, cfg.yShift + dy, c.z + dz, rz, sx, sy, sz, pre), ox: x });
+    out.push({ key, local: localM(x, cfg.yShift + dy, c.z + dz, rz, sx, sy, sz, pre), ox: x, tint });
   };
 
   // window cells: rows 1..floor-1, columns 0..n-1, x fastest (grid vertex order)
@@ -109,7 +119,7 @@ function windowCellContent(p: BuildingParams, cfg: GridCfg, counts: KitCounts): 
   cells.forEach((c, i) => {
     // wall panel + matched window guard (same random value in the original)
     const wallPick = randInt(0, 100, i, seed);
-    emit(COL("wall.001", wallPick, counts), c, 0, 0, 0);
+    emit(COL("wall.001", wallPick, counts), c, 0, 0, 0, 0, 1, 1, 1, undefined, cellTint?.(c.x, c.z, i));
     emit(COL("window guard.001", wallPick, counts), c, 0, 0, 0);
     emit(COL("ROOMS.001", randInt(cfg.roomsPick[0], cfg.roomsPick[1], i, seed), counts), c, 0, 0, 0);
 
@@ -267,7 +277,7 @@ function sideGround(p: BuildingParams, counts: KitCounts): Local[] {
   return out;
 }
 
-export function generateBuilding(p: BuildingParams, counts: KitCounts): Placement[] {
+export function generateBuilding(p: BuildingParams, counts: KitCounts, cellTint?: CellTint): Placement[] {
   const out: Placement[] = [];
   const seed = p.randomise;
 
@@ -284,7 +294,7 @@ export function generateBuilding(p: BuildingParams, counts: KitCounts): Placemen
   const M_SIDE_B = facade(-p.length / 2, 0.6, Math.PI * 1.5);    // solid-column side
 
   const push = (facadeM: Matrix4, items: Local[]) => {
-    for (const it of items) out.push({ key: it.key, matrix: facadeM.clone().multiply(it.local) });
+    for (const it of items) out.push({ key: it.key, matrix: facadeM.clone().multiply(it.local), tint: it.tint });
   };
 
   // ---- front/back facade (grid B: length × floor) ----
@@ -294,7 +304,7 @@ export function generateBuilding(p: BuildingParams, counts: KitCounts): Placemen
     acPick: [50, 100], clothPick: [0, 113],
     acFirstFloorCut: true,
   };
-  const windowsB = windowCellContent(p, cfgB, counts);
+  const windowsB = windowCellContent(p, cfgB, counts, cellTint);
   const frameFront = facadeFrame(p, p.length, "guardrail front", false, counts);
   const frameBack = facadeFrame(p, p.length, "guardrail back", false, counts);
   push(M_FRONT, windowsB);
@@ -311,7 +321,7 @@ export function generateBuilding(p: BuildingParams, counts: KitCounts): Placemen
     acPick: [50, 200], clothPick: [0, 96],
     acFirstFloorCut: false,
   };
-  const windowsA = windowCellContent(p, cfgA, counts);
+  const windowsA = windowCellContent(p, cfgA, counts, cellTint);
   const frameSide = facadeFrame(p, p.width, "guardrailside", true, counts);
   const groundSide = sideGround(p, counts);
 

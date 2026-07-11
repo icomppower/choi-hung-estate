@@ -7,15 +7,20 @@
  * 1. Curved/arc placement — blocks are laid out at even angular steps around a
  *    circle, each rotated so its arcade-front facade (+Y in the generator's local
  *    space) faces the plaza centre, instead of the grid's translation-only layout.
- * 2. Colour-band material — each of the 7 slab blocks is assigned one fixed rainbow
- *    hue (Yin/Hung/Choi/Fai/Tak/Po/Che), applied as a per-instance vertex tint on
- *    that block's facade instances (see Placement.tint / kit.ts). Because the tint
- *    is per-instance, block boundaries can never bleed into one another — the whole
- *    block reads as one solid painted hue, matching the real estate's photos.
+ * 2. Pastel colour-panel mosaic — reference photos (Wikipedia bird's-eye + the
+ *    iconic basketball-court shot) show the real estate is NOT one solid hue per
+ *    block; each facade is mostly white/cream with muted pastel panels (mint,
+ *    butter yellow, dusty salmon, powder blue, lilac) scattered across window
+ *    bays in small clusters. Each of the 7 slab blocks (Yin/Hung/Choi/Fai/Tak/Po/
+ *    Che) gets its own seeded mosaic via generator.ts's per-cell `CellTint` hook
+ *    (see windowCellContent/generateBuilding), tinting only the wall-panel piece
+ *    of each window cell — clustered in ~2×3-cell patches to read as painted
+ *    sections rather than single-pixel noise, with a "no tint" outcome kept in
+ *    the weighted pick so plenty of the base white/cream shows through.
  */
 import { Color, Matrix4 } from "three";
 import { defaultParams, type BuildingParams } from "./params";
-import { generateBuilding, type Placement, type KitCounts } from "./generator";
+import { generateBuilding, type Placement, type KitCounts, type CellTint } from "./generator";
 import { randFloat, randInt } from "./rng";
 
 export interface EstateParams {
@@ -44,7 +49,33 @@ export function defaultEstateParams(): EstateParams {
 
 // real block names, in the order the rainbow hues are traditionally listed
 export const BLOCK_NAMES = ["Yin", "Hung", "Choi", "Fai", "Tak", "Po", "Che"];
-const RAINBOW_HEX = [0xd6362e, 0xe8792a, 0xecc23a, 0x3f9e4d, 0x2f7fc2, 0x3d4fa0, 0x7b4ea0];
+
+// muted pastel panel colours, matched against real Choi Hung reference photos —
+// "null" is a deliberate weighted option so plenty of the base white/cream facade
+// shows through between colour patches, instead of every cell being painted
+const PASTEL_PALETTE: (number | null)[] = [
+  0xb8dcc8, // mint green
+  0xf0dfa0, // butter yellow
+  0xe8b8ae, // dusty salmon
+  0xb8d4e8, // powder blue
+  0xcbc0dc, // pale lilac
+  0xf0c9a0, // soft peach
+  null, null, // no tint — bare white/cream panel
+];
+
+/** small clustered patches (not per-cell noise, not one hue per block) — real
+ *  paint sections span a few window bays, so bucket cells into ~2 columns × 3
+ *  rows before picking a colour, and hash in the block index so each block's
+ *  mosaic differs even at the same seed. */
+function mosaicTint(blockIndex: number, seed: number): CellTint {
+  return (x, z) => {
+    const patchX = Math.floor(x / 2);
+    const patchZ = Math.floor(z / 3);
+    const patchId = patchX * 4001 + patchZ * 97 + blockIndex * 131;
+    const hex = PASTEL_PALETTE[randInt(0, PASTEL_PALETTE.length - 1, patchId, seed + 5050)];
+    return hex === null ? undefined : new Color(hex);
+  };
+}
 
 export interface EstateBlock {
   index: number;
@@ -123,7 +154,7 @@ export function generateEstateLayout(ep: EstateParams): EstateLayout {
       closedOpenStore: randFloat(0.3, 0.8, i, ep.seed + 808),
       storeSign: randFloat(0.3, 0.9, i, ep.seed + 909),
     };
-    const thisColor = isSlab ? colorIndex++ % RAINBOW_HEX.length : null;
+    const thisColor = isSlab ? colorIndex++ % BLOCK_NAMES.length : null;
     blocks.push({
       index: i,
       kind,
@@ -180,9 +211,12 @@ export function generateEstatePlacements(layout: EstateLayout, counts: KitCounts
   const out: Placement[] = [];
   for (const block of layout.blocks) {
     const t = blockTransform(block);
-    const tint = block.colorIndex !== null ? new Color(RAINBOW_HEX[block.colorIndex]) : undefined;
-    for (const pl of generateBuilding(block.params, counts)) {
-      out.push({ key: pl.key, matrix: t.clone().multiply(pl.matrix), tint });
+    // block.params.randomise is already a per-block seeded value (see
+    // generateEstateLayout) — reuse it so each slab block's pastel mosaic is
+    // stable under the same estate seed without threading a separate param
+    const cellTint = block.colorIndex !== null ? mosaicTint(block.index, block.params.randomise) : undefined;
+    for (const pl of generateBuilding(block.params, counts, cellTint)) {
+      out.push({ key: pl.key, matrix: t.clone().multiply(pl.matrix), tint: pl.tint });
     }
   }
   return out;
