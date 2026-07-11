@@ -567,7 +567,7 @@ devWindow.__setEnv = s => {
   env.frame(getBounds());
 };
 
-kit.load("/assets/kit.glb", "/assets/kit_manifest.json").then(() => {
+kit.load(`${import.meta.env.BASE_URL}assets/kit.glb`, `${import.meta.env.BASE_URL}assets/kit_manifest.json`).then(() => {
   document.getElementById("loading")?.remove();
   // inject the wet-surface shader into the building materials once (inert while
   // uWet = 0; the rain toggle raises it to 1). No shell geometry — it lives in the

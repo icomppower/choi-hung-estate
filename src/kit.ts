@@ -25,31 +25,32 @@ function tex(loader: TextureLoader, url: string, srgb = false): Texture {
 
 function buildMaterials(): Record<string, Material> {
   const loader = new TextureLoader();
+  const base = import.meta.env.BASE_URL;
   const building = new MeshStandardMaterial({
     name: "building",
-    map: tex(loader, "/textures/Material_Base_color.png", true),
-    normalMap: tex(loader, "/textures/Material_Normal_OpenGL.png"),
-    roughnessMap: tex(loader, "/textures/Material_Roughness.png"),
+    map: tex(loader, `${base}textures/Material_Base_color.png`, true),
+    normalMap: tex(loader, `${base}textures/Material_Normal_OpenGL.png`),
+    roughnessMap: tex(loader, `${base}textures/Material_Roughness.png`),
     roughness: 1,
-    metalnessMap: tex(loader, "/textures/Material_Metallic.png"),
+    metalnessMap: tex(loader, `${base}textures/Material_Metallic.png`),
     metalness: 1,
-    emissiveMap: tex(loader, "/textures/Material_Emissive.png", true),
+    emissiveMap: tex(loader, `${base}textures/Material_Emissive.png`, true),
     emissive: new Color(0xffffff),
     emissiveIntensity: 1.4,
     side: DoubleSide,
   });
   const floor = new MeshStandardMaterial({
     name: "floor",
-    map: tex(loader, "/textures/floor_Base_color.png", true),
-    normalMap: tex(loader, "/textures/floor_Normal_OpenGL.png"),
-    roughnessMap: tex(loader, "/textures/floor_Roughness.png"),
+    map: tex(loader, `${base}textures/floor_Base_color.png`, true),
+    normalMap: tex(loader, `${base}textures/floor_Normal_OpenGL.png`),
+    roughnessMap: tex(loader, `${base}textures/floor_Roughness.png`),
     roughness: 1,
-    metalnessMap: tex(loader, "/textures/floor_Metallic.png"),
+    metalnessMap: tex(loader, `${base}textures/floor_Metallic.png`),
     metalness: 1,
-    emissiveMap: tex(loader, "/textures/floor_Base_Emissive.png", true),
+    emissiveMap: tex(loader, `${base}textures/floor_Base_Emissive.png`, true),
     emissive: new Color(0xffffff),
     emissiveIntensity: 1, // driven by the "emissive" slider in building settings (1–50)
-    alphaMap: tex(loader, "/textures/floor_alpha.png"),
+    alphaMap: tex(loader, `${base}textures/floor_alpha.png`),
     alphaTest: 0.5, // cutout — no blend-sorting artifacts
     side: DoubleSide,
   });
