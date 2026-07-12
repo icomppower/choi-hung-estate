@@ -147,9 +147,9 @@ export class Kit {
     if (dry) dry.emissiveIntensity = v;
   }
 
-  async load(glbUrl: string, manifestUrl: string): Promise<void> {
+  async load(glbUrl: string, manifestUrl: string, onProgress?: (loaded: number, total: number) => void): Promise<void> {
     const [gltf, manifest] = await Promise.all([
-      new GLTFLoader().loadAsync(glbUrl),
+      new GLTFLoader().loadAsync(glbUrl, onProgress && (e => onProgress(e.loaded, e.total))),
       fetch(manifestUrl).then(r => r.json() as Promise<Manifest>),
     ]);
     this.manifest = manifest;

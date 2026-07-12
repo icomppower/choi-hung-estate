@@ -760,13 +760,37 @@ devWindow.__setEnv = s => {
 
 // kit.glb is ~20MB — a single fetch of that size is prone to transient drops on
 // flaky mobile connections (surfaces as a bare "TypeError: Failed to fetch" with
-// no further detail), so retry a few times with backoff, then fall back to a
-// tap-to-retry affordance instead of leaving the user on a dead error screen.
+// no further detail) AND to silently stalling (the fetch never settles at all,
+// which without a watchdog looks identical to "loading forever" since neither
+// the .then nor .catch ever fires). Each attempt below is raced against a stall
+// timeout that resets on every progress tick, so a connection that's genuinely
+// still receiving bytes is never punished, but one that's gone dead is retried.
+function raceStall<T>(p: Promise<T>, onStallReset: (reset: () => void) => void, stallMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout>;
+    const bump = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => reject(new Error(`stalled — no data for ${stallMs / 1000}s`)), stallMs);
+    };
+    onStallReset(bump);
+    bump();
+    p.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
+  });
+}
+
 async function loadKitWithRetry(attempts = 4): Promise<void> {
   const el = document.getElementById("loading");
   for (let i = 1; i <= attempts; i++) {
     try {
-      await kit.load(`${import.meta.env.BASE_URL}assets/kit.glb`, `${import.meta.env.BASE_URL}assets/kit_manifest.json`);
+      let bump = () => {};
+      const p = kit.load(
+        `${import.meta.env.BASE_URL}assets/kit.glb`, `${import.meta.env.BASE_URL}assets/kit_manifest.json`,
+        (loaded, total) => {
+          bump();
+          if (el && total) el.textContent = `Loading asset kit… ${Math.round((loaded / total) * 100)}%`;
+        },
+      );
+      await raceStall(p, reset => { bump = reset; }, 15000);
       return;
     } catch (err) {
       console.error(`kit load attempt ${i}/${attempts} failed`, err);
