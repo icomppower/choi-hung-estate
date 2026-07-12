@@ -787,7 +787,10 @@ async function loadKitWithRetry(attempts = 4): Promise<void> {
         `${import.meta.env.BASE_URL}assets/kit.glb`, `${import.meta.env.BASE_URL}assets/kit_manifest.json`,
         (loaded, total) => {
           bump();
-          if (el && total) el.textContent = `Loading asset kit… ${Math.round((loaded / total) * 100)}%`;
+          // gzip transfer-encoding means `total` (Content-Length) is the compressed
+          // size while `loaded` counts decompressed bytes read from the stream, so
+          // loaded can exceed total near the end — clamp so it never reads > 100%
+          if (el && total) el.textContent = `Loading asset kit… ${Math.min(100, Math.round((loaded / total) * 100))}%`;
         },
       );
       await raceStall(p, reset => { bump = reset; }, 15000);
